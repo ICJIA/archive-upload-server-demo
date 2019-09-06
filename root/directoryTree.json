@@ -1,1 +1,15 @@
-{"path":"./root/files","name":"files","children":[{"path":"root/files/icjia","name":"icjia","children":[{"path":"root/files/icjia/articles","name":"articles","children":[],"size":0,"type":"directory"}],"size":0,"type":"directory"}],"size":0,"type":"directory"}
+{
+  "path": "/Users/cws/webdev/archive-upload-server-demo/root/files",
+  "name": "files",
+  "children": [
+    {
+      "path": "/Users/cws/webdev/archive-upload-server-demo/root/files/adult-redeploy",
+      "name": "adult-redeploy",
+      "children": [],
+      "size": 0,
+      "type": "directory"
+    }
+  ],
+  "size": 0,
+  "type": "directory"
+}

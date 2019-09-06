@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "index": "node indexArchive"
+    "index": "node buildDirectoryTree && node buildSearchIndex && node generateSiteMap"
   },
   "keywords": [],
   "author": "",

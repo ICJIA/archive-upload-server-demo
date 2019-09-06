@@ -8,18 +8,21 @@ const uuidv4 = require("uuid/v4");
 const path = require("path");
 const cors = require("cors");
 const fs = require("fs-extra");
-const TEMP_DIRECTORY = "./.tmp/";
+const temp_directory = "./.tmp/";
 const buildDirectoryTree = require("./lib/buildDirectoryTree");
-const buildSearchIndex = require("./lib/buildSearchIndex");
+const jsonfile = require("jsonfile");
+// const buildSearchIndex = require("./lib/buildSearchIndex");
+// const buildSiteMap = require("./lib/buildSitemap");
+const { createSitemap } = require("sitemap");
 
-if (!fs.existsSync(TEMP_DIRECTORY)) {
+if (!fs.existsSync(temp_directory)) {
   console.log("create temp directory");
-  fs.mkdirSync(TEMP_DIRECTORY, { recursive: true });
+  fs.mkdirSync(temp_directory, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb, dest) => {
-    cb(null, TEMP_DIRECTORY);
+    cb(null, temp_directory);
   },
   filename: (req, file, cb) => {
     const newFilename = `${file.originalname}`;
@@ -29,23 +32,41 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
 const app = express();
+const sitemap = createSitemap({
+  hostname: "http://example.com",
+  cacheTime: 600000, // 600 sec - cache purge period
+  urls: [
+    { url: "/page-1/", changefreq: "daily", priority: 0.3 },
+    { url: "/page-2/", changefreq: "monthly", priority: 0.7 },
+    { url: "/page-3/" }, // changefreq: 'weekly',  priority: 0.5
+    { url: "/page-4/", img: "http://urlTest.com" }
+  ]
+});
 app.use(cors());
-
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get("/", (req, res) => res.send("Howdy!"));
+app.get("/", (req, res) => res.send({ status: 200, msg: "Working!" }));
 
-app.post("/", upload.array("files"), (req, res) => {
+app.get("/sitemap.xml", function(req, res) {
+  try {
+    const xml = sitemap.toXML();
+    res.header("Content-Type", "application/xml");
+    res.send(xml);
+  } catch (e) {
+    console.error(e);
+    res.status(500).end();
+  }
+});
+
+app.post("/", upload.array("files"), async (req, res) => {
   let clientToken = req.body.uploadToken;
   if (clientToken !== serverToken) {
-    res.status(403).send({ errorCode: "403", message: "Forbidden" });
+    res.status(403).end();
   } else {
     let dir = req.body.path;
     if (!fs.existsSync(dir)) {
-      console.log("create upload path");
       fs.mkdirSync(dir, { recursive: true });
     }
 
@@ -56,7 +77,7 @@ app.post("/", upload.array("files"), (req, res) => {
       if (!fs.existsSync(dir + file.originalname)) {
         successfulUploads.push(file.originalname);
         fs.move(
-          TEMP_DIRECTORY + file.originalname,
+          temp_directory + file.originalname,
           dir + file.originalname,
           function(err) {
             if (err) {
@@ -66,36 +87,33 @@ app.post("/", upload.array("files"), (req, res) => {
         );
       } else {
         failedUploads.push(file.originalname);
-        fs.emptyDirSync(TEMP_DIRECTORY)
+        fs.emptyDirSync(temp_directory);
         console.log("File exists: ", dir + file.originalname);
       }
     });
 
-    // Rebuild directory tree
+    //Rebuild directory tree
     const arhiveDirectoryObj = {
-      directoryRoot: "./root/files",
-      writeTarget: "./root",
+      directoryRoot: path.resolve(__dirname + "/root/files"),
+      writeTarget: path.resolve(__dirname + "/root"),
       filename: "directoryTree.json"
     };
-    buildDirectoryTree(arhiveDirectoryObj);
 
-    // Rebuild search index
-    let arhiveSearchObj = {
-      directoryRoot: "./root/files",
-      writeTarget: "./root",
-      filename: "searchIndex.json",
-      archiveBase: "https://archive.icjia.cloud/files",
-      exclusions: ["directoryTree.json", "searchIndex.json"]
-    };
-
-    buildSearchIndex(arhiveSearchObj);
-
-    res.send({
-      status: 200,
-      msg: "Success",
-      allFiles: req.files,
-      successfulUploads,
-      failedUploads
+    buildDirectoryTree(arhiveDirectoryObj).then(response => {
+      jsonfile.writeFileSync(
+        `${arhiveDirectoryObj.writeTarget}/${arhiveDirectoryObj.filename}`,
+        response,
+        function(err) {
+          if (err) console.error(err);
+        }
+      );
+      res.send({
+        status: 200,
+        msg: "Success",
+        allFiles: req.files,
+        successfulUploads,
+        failedUploads
+      });
     });
   }
 });
